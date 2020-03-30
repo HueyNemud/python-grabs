@@ -29,15 +29,15 @@ def get_save_image(path_out, im, zoom_level):
 )
 @click.option("--out-dir", "-o", default=".",
               help="Path to a directory where the documents data will be stored. Default in the current folder.")
-@click.option("--zoom-level", "-z", default=10,
+@click.option("--zoom-level", "-z", default=None, type=int,
               help="The zoom level at which the images will be downloaded. If not specified, the maximum zoom level for each image will be used.")
 @click.option("--recursive", "-r", is_flag=True, default=False,
-              help="Download the subviews of the document set with -s.")
-@click.option("--no-download", "-d", is_flag=True, default=False,
+              help="Download the sub-documents of the document set with -s.")
+@click.option("--no-images", "-x", is_flag=True, default=False,
               help="If set, only the metadata of images will be downloaded.")
 @click.option("--verbose", "-v", is_flag=True, default=False,
               help="Verbose mode.")
-def grab(src, out_dir, recursive=False, zoom_level=10, no_download=False, verbose=False):
+def grab(src, out_dir, recursive=False, zoom_level=None, no_images=False, verbose=False):
     if verbose:
         log.basicConfig(format="%(message)s", level=log.INFO)
         log.info("Verbose output.")
@@ -57,11 +57,11 @@ def grab(src, out_dir, recursive=False, zoom_level=10, no_download=False, verbos
         pool.append((im, serialized))
     else:
         doc = grabs.document(src)
-        log.info(f'Found document {doc} with {len(doc.subviews_urls)} subviews and {len(doc.images)}')
+        log.info(f'Found document {doc} with {len(doc.children_urls)} subviews and {len(doc.images)}')
         serialized = serialize_json(doc)
         pool.append((doc, serialized))
         if recursive:
-            for sub in doc.subviews:
+            for sub in doc.children:
                 log.info(f'Found subview {sub}')
                 serialized = serialize_json(sub)
                 pool.append((sub, serialized))
@@ -75,16 +75,20 @@ def grab(src, out_dir, recursive=False, zoom_level=10, no_download=False, verbos
             md_file.write(serialized)
 
     # Download the images if asked to
-    if not no_download:
-        images = []
+    n_img = 0
+    if not no_images:
         for element, _ in pool:
             if isinstance(element, grabs.resource.TiledImage):
-                get_save_image(path_out,im, zoom_level)
+                images = [element]
             elif isinstance(element, grabs.resource.Document):
-                for im in element.images:
-                    get_save_image(path_out, im, zoom_level)
+                images = element.images
 
-    print(f'Saved {len(pool)} document{"s" if len(pool) != 1 else ""} to {Path(out_dir)}')
+            for im in images:
+                zl = zoom_level or im.max_zoom
+                get_save_image(path_out,im, zl)
+                n_img += 1
+
+    print(f'Saved {len(pool)} document{"s" if len(pool) != 1 else ""} metadata and {n_img} image{"s" if n_img != 1 else ""} to {Path(out_dir)}')
 
 
 if __name__ == '__main__':

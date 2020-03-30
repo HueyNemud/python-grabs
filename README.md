@@ -17,11 +17,27 @@ Options:
                             level for each image will be used.
 
   -r, --recursive           Download the subviews of the document set with -s.
-  -d, --no-download         If set, only the metadata of images will be
+  -x, --no-images           If set, only the metadata of images will be
                             downloaded.
 
   -v, --verbose             Verbose mode.
   --help                    Show this message and exit.
+```
+
+**Examples:**
+```bash
+# Download a single image and save it to /tmp
+grabs -s https://bibliotheques-specialisees.paris.fr/ark:/73873/pf0000935076/v0001 -o /tmp
+
+# Download the metadata and images (on max resolution) of a document and save it to /tmp
+grabs -s https://bibliotheques-specialisees.paris.fr/ark:/73873/pf0000935076 -o /tmp
+
+# Grab only the metadata of a collection document all its child documents
+grabs --no-download -r -s https://bibliotheques-specialisees.paris.fr/ark:/73873/pf0001950930 
+
+# Download the images of all the images in a collection document at zoom-level 10
+grabs -r -z 10 -s https://bibliotheques-specialisees.paris.fr/ark:/73873/pf0001950930 
+
 ```
 
 ## Python module

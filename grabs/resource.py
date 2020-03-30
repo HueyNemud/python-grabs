@@ -42,7 +42,7 @@ class Document:
     properties: field(default_factory=dict)
     properties_lang: str
     images: field(default_factory=tuple)
-    subviews_urls: field(default_factory=tuple)
+    children_urls: field(default_factory=tuple)
     where_to_find_it: str = ''
 
     def get_prop(self, prop_name = ''):
@@ -51,12 +51,12 @@ class Document:
             return prop['name'], prop['values'], self.properties_lang
 
     @property
-    def subviews(self):
-        for subview in self.subviews_urls:
-            yield DocumentBuilder(subview).build()
+    def children(self):
+        for children in self.children_urls:
+            yield DocumentBuilder(children).build()
 
     def is_collection(self):
-        return self.category in COLLECTIONS_TYPE or len(self.subviews_urls)
+        return self.category in COLLECTIONS_TYPE or len(self.children_urls)
 
 
 @dataclass(frozen=True)
@@ -214,8 +214,8 @@ class DocumentBuilder:
                 images.append(image)
         document_metadata['images'] = images
 
-        subviews_urls = DocumentBuilder.__get_links_to_subviews(document_metadata['iid'])
-        document_metadata['subviews_urls'] = subviews_urls
+        children_urls = DocumentBuilder.__get_links_to_childrens(document_metadata['iid'])
+        document_metadata['children_urls'] = children_urls
 
         return Document(**document_metadata)
 
@@ -225,9 +225,9 @@ class DocumentBuilder:
             return m.group(0)
 
     @staticmethod
-    def __get_links_to_subviews(document_id):
+    def __get_links_to_childrens(document_id):
         f_name = 'InterviewId'
-        # the subviews are added dynamically so we can't get them directly from the page source
+        # the childrens are added dynamically so we can't get them directly from the page source
         query = f'https://bibliotheques-specialisees.paris.fr/in/rest/searchSVC/jsonp/geoquery?callback=&query=*&fq=parent_iid:"{document_id}"&fl={f_name}'
         r = requests.get(query)
         r.raise_for_status()

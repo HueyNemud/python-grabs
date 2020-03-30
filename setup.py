@@ -13,6 +13,7 @@ setup(
     description='Grab documents and images from http://bibliotheques-specialisees.paris.fr',
     long_description=read('README.md'),
     packages=find_packages(),
+    py_modules=['cli'],
     license= "WTFPL",
     install_requires=[
         'Click',
@@ -25,4 +26,8 @@ setup(
         [console_scripts]
         grabs=cli:grab
     ''',
+    project_urls={
+        "Documentation": "https://github.com/HueyNemud/python-grabs",
+        "Source Code": "https://github.com/HueyNemud/python-grabs",
+    },
 )

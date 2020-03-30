@@ -75,7 +75,8 @@ def grab(src, out_dir, recursive=False, zoom_level=None, no_images=False, verbos
         pool.append((doc, serialized))
         if recursive:
             for sub in doc.children:
-                log.debug(f'Found child document {sub}')
+                log.info(f'Found child document {sub.url} with {len(sub.images)} images')
+                log.debug(sub)
                 serialized = serialize_json(sub)
                 pool.append((sub, serialized))
 

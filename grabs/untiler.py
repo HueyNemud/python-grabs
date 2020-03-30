@@ -7,8 +7,6 @@ from io import BytesIO
 from . import resource
 from dataclasses import (dataclass)
 
-MAX_WORKERS = 10
-FETCH_TIMEOUT = 20
 MODES_FORMATS = {'jpg': 'RGB', 'jpeg': 'RGB', 'png': 'RGBA'}
 
 
@@ -23,7 +21,7 @@ class _UntileQuery:
         mz = self.image.max_zoom
         zl = self.zoom_level
         if zl > mz:
-            raise ValueError(f"Zoom level ({zl})is greater than the maximum possible zoom ({mz}) for this image.")
+            raise ValueError(f"Zoom level ({zl}) is greater than the maximum possible zoom ({mz}) for {self.image.file_name}.")
 
     def width(self):
         return int(self.image.width / 2 ** (self.image.max_zoom - self.zoom_level))
@@ -35,8 +33,8 @@ class _UntileQuery:
         zl_width = self.width()
         zl_height = self.height()
 
-        if zl_width < 1 or zl_height < 1:
-            warnings.warn(f'Tiles at zoom level {self.zoom_level} are smaller than 1 pixel.')
+        if max(zl_width, zl_height) < 1:
+            warnings.warn(f'Image at zoom level {self.zoom_level} is smaller than 1 pixel.')
 
         n_columns = math.ceil(zl_width / self.image.tile_size)
         n_rows = math.ceil(zl_height / self.image.tile_size)
@@ -61,59 +59,55 @@ class Untiler:
 
     DRAW_TILES_BOUNDS = False
 
-    def __init__(self, max_workers = MAX_WORKERS, fetch_timeout = FETCH_TIMEOUT):
-        self.max_workers = max_workers
-        self.fetch_timeout = fetch_timeout
-
-    def untile(self, image, zoom_level, callbacks):
+    @staticmethod
+    def untile(image, zoom_level, callbacks):
         query = _UntileQuery(image,zoom_level)
 
-        def propagate(future):
+        def propagate(fut):
             for cb in callbacks:
-                cb(zoom_level, future)
+                cb(zoom_level, fut)
 
         with cf.ThreadPoolExecutor(1) as executor:
-            future = executor.submit(self.__exec_multithread, query)
+            future = executor.submit(Untiler.__build_image, query)
             if callbacks:
                 future.add_done_callback(propagate)
             return future
 
-    def __exec_multithread(self, query: _UntileQuery):
+    @staticmethod
+    def __build_image(query: _UntileQuery):
         tiles_urls = query.tiles_urls()
         tile_matrix = {}
 
-        with cf.ThreadPoolExecutor(self.max_workers) as executor:
-            futures = [executor.submit(query.fetch_tile, idx, url) for idx, url in tiles_urls.items()]
-            cf.wait(futures, timeout=self.fetch_timeout, return_when=cf.FIRST_EXCEPTION)
+        tiles = [query.fetch_tile(idx, url) for idx, url in tiles_urls.items()]
+        for tile in tiles:
+            tile_matrix[tile[0], tile[1]] = Image.open(BytesIO(tile[2]))
 
-            for future in futures:
-                tile = future.result()
-                tile_matrix[tile[0], tile[1]] = Image.open(BytesIO(tile[2]))
+        dims = (query.width(), query.height())
+        untiled = Image.new(MODES_FORMATS[query.image.format],dims)
 
-            dims = (query.width(), query.height())
+        t_size = query.image.tile_size
+        overlap = query.image.overlap
+        for index, tile in tile_matrix.items():
+            # FIX: Tiles of the firt column (resp. first row) seem to have
+            # no overlapping area on the left (resp. top) border.
+            overlap_x = query.image.overlap if index[0] else 0
+            overlap_y = query.image.overlap if index[1] else 0
+            crop_rectangle = (overlap_x,
+                              overlap_y,
+                              t_size + overlap_x,
+                              t_size + overlap_y)
+            non_overlapping = tile.crop(crop_rectangle)
+            cursor = (index[0] * t_size, index[1] * t_size)
+            untiled.paste(non_overlapping, box=cursor)
 
-            untiled = Image.new(MODES_FORMATS[query.image.format],dims) # TODO Mode should depends on the format
-
-            max_rows_idx = max([idx[1] for idx in tile_matrix.keys()])
-            cursor = (0, 0)
+        # paint the grid on top of the image
+        if Untiler.DRAW_TILES_BOUNDS:
+            draw = ImageDraw.Draw(untiled)
             for index, tile in tile_matrix.items():
-                w = tile.width
-                h = tile.height
-                untiled.paste(tile, cursor)
-                y_offset = cursor[1] + h - query.image.overlap if index[1] < max_rows_idx else 0
-                x_offset = cursor[0] + w - query.image.overlap if index[1] == max_rows_idx else cursor[0]
-                cursor = (x_offset, y_offset)
+                cursor = (index[0] * t_size, index[1] * t_size)
+                # Draw boundaries with overlapping
+                tile_bbox = [cursor[0] - overlap, cursor[1] - overlap * 2, cursor[0] + tile.width - overlap,
+                             cursor[1] + tile.height - overlap * 2]
+                draw.rectangle(tile_bbox, outline='cyan')
 
-            # Run separately because of overlap
-            if Untiler.DRAW_TILES_BOUNDS:
-                draw = ImageDraw.Draw(untiled)
-                cursor = (0, 0)
-                for index, tile in tile_matrix.items():
-                    w = tile.width
-                    h = tile.height
-                    draw.rectangle([cursor, (cursor[0] + w, cursor[1] + h)],outline='red')
-                    y_offset = cursor[1] + h - query.image.overlap if index[1] < max_rows_idx else 0
-                    x_offset = cursor[0] + w - query.image.overlap if index[1] == max_rows_idx else cursor[0]
-                    cursor = (x_offset, y_offset)
-
-            return untiled
+        return untiled

@@ -33,7 +33,7 @@ grabs -s https://bibliotheques-specialisees.paris.fr/ark:/73873/pf0000935076/v00
 grabs -s https://bibliotheques-specialisees.paris.fr/ark:/73873/pf0000935076 -o /tmp
 
 # Grab only the metadata of a collection document all its child documents
-grabs --no-download -r -s https://bibliotheques-specialisees.paris.fr/ark:/73873/pf0001950930 
+grabs --no-images -r -s https://bibliotheques-specialisees.paris.fr/ark:/73873/pf0001950930 
 
 # Download the images of all the images in a collection document at zoom-level 10
 grabs -r -z 10 -s https://bibliotheques-specialisees.paris.fr/ark:/73873/pf0001950930 
@@ -56,19 +56,17 @@ imcontent.save(first_image.file_name)
 # Retrieve the second image at zoom=11, this time asynchronously using a callback function
 second_image = doc.images[1]
 
-
 def callback(zoom, future):
     r = future.result()
     r.save(second_image.file_name)
 
-
-first_image.content(zoom_level=11, callback=callback)
+second_image.content(zoom_level=11, callback=callback)
 
 # A Collection document
 doc = grabs.document('https://bibliotheques-specialisees.paris.fr/ark:/73873/pf0001950930')
 print(doc)
 
 if doc.is_collection():
-    for subdoc in doc.subviews:
+    for subdoc in doc.children:
         print(subdoc)
 ```

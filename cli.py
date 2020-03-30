@@ -2,8 +2,12 @@ import click
 import grabs
 import re
 import dataclasses, json
-from pathlib import Path
 import logging as log
+import concurrent.futures as cf
+from pathlib import Path
+
+MAX_WORKERS = 5
+FETCH_TIMEOUT = 50
 
 
 def make_path(directory, file_name):
@@ -22,6 +26,12 @@ def get_save_image(path_out, im, zoom_level):
     log.info(f'Saving to {path}')
     imdata.save(path)
 
+
+def print_end_message(out_dir, n_docs, n_img=0, success_img=0):
+    msg = f'Saved {n_docs} document{"s" if n_docs != 1 else ""} metadata'
+    if n_img:
+        msg += f' and {success_img}/{n_img} image{"s" if n_img != 1 else ""} to {Path(out_dir)}'
+    print(msg)
 
 @click.command()
 @click.option("--src", "-s", required=True,
@@ -57,7 +67,7 @@ def grab(src, out_dir, recursive=False, zoom_level=None, no_images=False, verbos
         pool.append((im, serialized))
     else:
         doc = grabs.document(src)
-        log.info(f'Found document {doc} with {len(doc.children_urls)} subviews and {len(doc.images)}')
+        log.info(f'Found document {doc} with {len(doc.children_urls)} subviews and {len(doc.images)} images')
         serialized = serialize_json(doc)
         pool.append((doc, serialized))
         if recursive:
@@ -75,7 +85,6 @@ def grab(src, out_dir, recursive=False, zoom_level=None, no_images=False, verbos
             md_file.write(serialized)
 
     # Download the images if asked to
-    n_img = 0
     if not no_images:
         for element, _ in pool:
             if isinstance(element, grabs.resource.TiledImage):
@@ -83,12 +92,24 @@ def grab(src, out_dir, recursive=False, zoom_level=None, no_images=False, verbos
             elif isinstance(element, grabs.resource.Document):
                 images = element.images
 
-            for im in images:
-                zl = zoom_level or im.max_zoom
-                get_save_image(path_out,im, zl)
-                n_img += 1
-
-    print(f'Saved {len(pool)} document{"s" if len(pool) != 1 else ""} metadata and {n_img} image{"s" if n_img != 1 else ""} to {Path(out_dir)}')
+            n_img = len(images)
+            with cf.ThreadPoolExecutor(MAX_WORKERS) as executor:
+                futures = []
+                for im in images:
+                    zl = zoom_level or im.max_zoom
+                    futures.append(executor.submit(get_save_image, path_out, im, zl))
+                n_img_success = n_img
+                finished, unfinished = cf.wait(futures, timeout=FETCH_TIMEOUT, return_when=cf.FIRST_EXCEPTION)
+                for f in unfinished:
+                    try:
+                        f.result()
+                    except ValueError as e:
+                        n_img_success -= 1
+                        log.error("ERROR: An image could not be downloaded. Caused by:")
+                        print(e)
+            print_end_message(out_dir, len(pool), n_img, n_img_success)
+    else:
+        print_end_message(out_dir, len(pool))
 
 
 if __name__ == '__main__':

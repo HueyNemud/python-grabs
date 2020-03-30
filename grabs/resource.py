@@ -12,7 +12,8 @@ BIBLIOTHEQUES_SPECIALISEES = 'bibliotheques-specialisees.paris.fr'
 SCHEME = 'https'
 DEFAULT_FORMAT = 'jpg'
 COLLECTIONS_TYPE = ['CollectionIconography']
-
+N_SUBDOCS_AT_ONCE = 100
+SUBDOCS_MAX_PAGES = 100
 
 # Helper methods
 def make_bs_url(parts):
@@ -80,7 +81,7 @@ class TiledImage:
     @property
     def max_zoom(self):
         max_n = max(self.width, self.height) / self.tile_size
-        max_zoom = math.floor(math.log2(max_n)) # Dark
+        max_zoom = math.floor(math.log2(max_n))
         return 10 + max_zoom # The base zoom is 10
 
     def content(self, zoom_level=None, callback=None, caching=True):
@@ -227,14 +228,24 @@ class DocumentBuilder:
     @staticmethod
     def __get_links_to_childrens(document_id):
         f_name = 'InterviewId'
-        # the childrens are added dynamically so we can't get them directly from the page source
-        query = f'https://bibliotheques-specialisees.paris.fr/in/rest/searchSVC/jsonp/geoquery?callback=&query=*&fq=parent_iid:"{document_id}"&fl={f_name}'
-        r = requests.get(query)
-        r.raise_for_status()
-        json_str = r.text[1:-4] # r returns a javascript call "(json);" but we only want the json
-        results = json.loads(json_str).get("results")
-        sub_arks = [result.get(f_name).get("value") for result in results]
-        return [make_bs_url(ark) for ark in sub_arks]
+        children = set()
+        for k in range(1, SUBDOCS_MAX_PAGES):
+            # the childrens are added dynamically so we can't get them directly from the page source
+            query = f'https://bibliotheques-specialisees.paris.fr/in/rest/searchSVC/jsonp/geoquery?callback=&query=*' \
+                    f'&fq=parent_iid:"{document_id}"' \
+                    f'&fl={f_name}' \
+                    f'&pageSize={N_SUBDOCS_AT_ONCE}' \
+                    f'&pageNo={k}'
+            r = requests.get(query)
+            r.raise_for_status()
+            json_str = r.text[1:-4] # r returns a javascript call "(json);" but we only want the json
+
+            results = json.loads(json_str).get("results")
+            if not results:
+                break
+            [children.add(result.get(f_name).get("value")) for result in results]
+
+        return [make_bs_url(ark) for ark in children]
 
     def __get_props(self):
         prop_containers = self.source.findAll("div", {"class":"NormalField"})

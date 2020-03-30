@@ -90,6 +90,8 @@ def grab(src, out_dir, recursive=False, zoom_level=None, no_images=False, verbos
         log.debug(serialized)
 
     # Download the images if asked to
+    n_img = 0
+    n_img_success = 0
     if not no_images:
         for element, _ in pool:
             if isinstance(element, grabs.resource.TiledImage):
@@ -97,13 +99,13 @@ def grab(src, out_dir, recursive=False, zoom_level=None, no_images=False, verbos
             elif isinstance(element, grabs.resource.Document):
                 images = element.images
 
-            n_img = len(images)
+            n_img += len(images)
             with cf.ThreadPoolExecutor(MAX_WORKERS) as executor:
                 futures = []
                 for im in images:
                     zl = zoom_level or im.max_zoom
                     futures.append(executor.submit(get_save_image, path_out, im, zl))
-                n_img_success = n_img
+                n_img_success += len(images)
                 finished, unfinished = cf.wait(futures, timeout=FETCH_TIMEOUT, return_when=cf.FIRST_EXCEPTION)
                 for f in unfinished:
                     try:
@@ -112,7 +114,7 @@ def grab(src, out_dir, recursive=False, zoom_level=None, no_images=False, verbos
                         n_img_success -= 1
                         log.error("ERROR: An image could not be downloaded. Caused by:")
                         print(e)
-            print_end_message(out_dir, len(pool), n_img, n_img_success)
+        print_end_message(out_dir, len(pool), n_img, n_img_success)
     else:
         print_end_message(out_dir, len(pool))
 

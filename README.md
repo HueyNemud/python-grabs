@@ -1,6 +1,6 @@
 A simple python tool to grab archival documents from http://bibliotheques-specialisees.paris.fr
 
-#### Installation (Requires Python 3.7+)
+#### Installation (requires Python 3.6+)
 `pip install git+https://github.com/HueyNemud/python-grabs.git`
 
 ## CLI

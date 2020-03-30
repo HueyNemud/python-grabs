@@ -9,6 +9,7 @@ from pathlib import Path
 MAX_WORKERS = 5
 FETCH_TIMEOUT = 50
 
+log.basicConfig(format="%(message)s", level=log.INFO)
 
 def make_path(directory, file_name):
     return f'{directory}/{file_name.replace("/", "_")}'
@@ -31,7 +32,7 @@ def print_end_message(out_dir, n_docs, n_img=0, success_img=0):
     msg = f'Saved {n_docs} document{"s" if n_docs != 1 else ""} metadata'
     if n_img:
         msg += f' and {success_img}/{n_img} image{"s" if n_img != 1 else ""} to {Path(out_dir)}'
-    print(msg)
+    log.info(msg)
 
 @click.command()
 @click.option("--src", "-s", required=True,
@@ -49,7 +50,7 @@ def print_end_message(out_dir, n_docs, n_img=0, success_img=0):
               help="Verbose mode.")
 def grab(src, out_dir, recursive=False, zoom_level=None, no_images=False, verbose=False):
     if verbose:
-        log.basicConfig(format="%(message)s", level=log.INFO)
+        log.basicConfig(format="%(message)s", level=log.DEBUG)
         log.info("Verbose output.")
 
     path_out = Path(out_dir)
@@ -62,17 +63,19 @@ def grab(src, out_dir, recursive=False, zoom_level=None, no_images=False, verbos
 
     if regex.search(src):
         im = grabs.tiled_image(src)
-        log.info(f'Found tiled image {im}')
+        log.info(f'Found tiled image at {im.viewer_url}')
+        log.debug(im)
         serialized = serialize_json(im)
         pool.append((im, serialized))
     else:
         doc = grabs.document(src)
-        log.info(f'Found document {doc} with {len(doc.children_urls)} subviews and {len(doc.images)} images')
+        log.info(f'Found document at {doc.url} with {len(doc.children_urls)} subviews and {len(doc.images)} images')
+        log.debug(doc)
         serialized = serialize_json(doc)
         pool.append((doc, serialized))
         if recursive:
             for sub in doc.children:
-                log.info(f'Found subview {sub}')
+                log.debug(f'Found child document {sub}')
                 serialized = serialize_json(sub)
                 pool.append((sub, serialized))
 
@@ -80,9 +83,10 @@ def grab(src, out_dir, recursive=False, zoom_level=None, no_images=False, verbos
     for element, mdata in pool:
         md_file_name = element.ark or src
         path = make_path(path_out,md_file_name)
-        log.info(f'Writing element {element} to {path}')
+        log.info(f'Saving metadata to {path}')
         with open(path, 'w') as md_file:
             md_file.write(serialized)
+        log.debug(serialized)
 
     # Download the images if asked to
     if not no_images:

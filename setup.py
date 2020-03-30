@@ -19,7 +19,8 @@ setup(
         'Click',
         'requests',
         'bs4',
-        'Pillow'
+        'Pillow',
+        'dataclasses'
     ],
     classifiers=[],
     entry_points='''

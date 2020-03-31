@@ -1,14 +1,14 @@
 import requests
-import warnings
 import math
 import concurrent.futures as cf
+import logging as log
 from PIL import (Image, ImageDraw)
 from io import BytesIO
-from . import resource
 from dataclasses import (dataclass)
+from . import resource
 
 MODES_FORMATS = {'jpg': 'RGB', 'jpeg': 'RGB', 'png': 'RGBA'}
-
+FETCH_TIMEOUT = 20
 
 @dataclass(frozen=True)
 class _UntileQuery:
@@ -24,17 +24,17 @@ class _UntileQuery:
             raise ValueError(f"Zoom level ({zl}) is greater than the maximum possible zoom ({mz}) for {self.image.file_name}.")
 
     def width(self):
-        return int(self.image.width / 2 ** (self.image.max_zoom - self.zoom_level))
+        return self.image.width // 2 ** (self.image.max_zoom - self.zoom_level)
 
     def height(self):
-        return int(self.image.height / 2 ** (self.image.max_zoom - self.zoom_level))
+        return self.image.height // 2 ** (self.image.max_zoom - self.zoom_level)
 
     def tiles_urls(self):
         zl_width = self.width()
         zl_height = self.height()
 
         if max(zl_width, zl_height) < 1:
-            warnings.warn(f'Image at zoom level {self.zoom_level} is smaller than 1 pixel.')
+            log.warning(f'Image at zoom level {self.zoom_level} is smaller than 1 pixel.')
 
         n_columns = math.ceil(zl_width / self.image.tile_size)
         n_rows = math.ceil(zl_height / self.image.tile_size)
@@ -50,7 +50,7 @@ class _UntileQuery:
 
     @staticmethod
     def fetch_tile(index, tile_url):
-        r = requests.get(tile_url)
+        r = requests.get(tile_url, timeout=FETCH_TIMEOUT)
         r.raise_for_status()
         return index + (r.content,)
 
@@ -78,10 +78,13 @@ class Untiler:
         tiles_urls = query.tiles_urls()
         tile_matrix = {}
 
-        tiles = [query.fetch_tile(idx, url) for idx, url in tiles_urls.items()]
-        for tile in tiles:
-            tile_matrix[tile[0], tile[1]] = Image.open(BytesIO(tile[2]))
-
+        for idx, url in tiles_urls.items():
+            try:
+                tile = query.fetch_tile(idx, url)
+                tile_matrix[tile[0], tile[1]] = Image.open(BytesIO(tile[2]))
+            except requests.exceptions.RequestException as err:
+                log.error(f'Error: Unable to load tile {url} in position {idx}.\n' \
+                          f'Caused by {err}')
         dims = (query.width(), query.height())
         untiled = Image.new(MODES_FORMATS[query.image.format],dims)
 
@@ -109,5 +112,4 @@ class Untiler:
                 tile_bbox = [cursor[0] - overlap, cursor[1] - overlap * 2, cursor[0] + tile.width - overlap,
                              cursor[1] + tile.height - overlap * 2]
                 draw.rectangle(tile_bbox, outline='cyan')
-
-        return untiled
+        return untiled, len(tile_matrix) / len(tiles_urls)

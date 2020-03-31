@@ -1,23 +1,22 @@
 import requests
 import json
 import re
+import math
+import traceback
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 from dataclasses import (dataclass, field)
 from .untiler import Untiler
-import math
-import traceback
 
-BIBLIOTHEQUES_SPECIALISEES = 'bibliotheques-specialisees.paris.fr'
-SCHEME = 'https'
-DEFAULT_FORMAT = 'jpg'
-COLLECTIONS_TYPE = ['CollectionIconography']
+COLLECTION_TYPES = ['CollectionIconography']
 N_SUBDOCS_AT_ONCE = 100
 SUBDOCS_MAX_PAGES = 100
+FETCH_TIMEOUT = 20 # in seconds
+
 
 # Helper methods
 def make_bs_url(parts):
-    return urlparse(f'{SCHEME}://{BIBLIOTHEQUES_SPECIALISEES}/{parts}').geturl()
+    return urlparse(f'https://bibliotheques-specialisees.paris.fr/{parts}').geturl()
 
 
 def get_js_var(source, varname):
@@ -27,7 +26,7 @@ def get_js_var(source, varname):
 
 
 def fetch_html(url):
-    r = requests.get(url)
+    r = requests.get(url, timeout=FETCH_TIMEOUT)
     r.raise_for_status()
     return BeautifulSoup(r.text, features='html.parser')
 
@@ -52,12 +51,16 @@ class Document:
             return prop['name'], prop['values'], self.properties_lang
 
     @property
+    def id(self):
+        return self.ark or self.iid or self.url
+
+    @property
     def children(self):
         for children in self.children_urls:
             yield DocumentBuilder(children).build()
 
     def is_collection(self):
-        return self.category in COLLECTIONS_TYPE or len(self.children_urls)
+        return self.category in COLLECTION_TYPES or len(self.children_urls)
 
 
 @dataclass(frozen=True)
@@ -71,12 +74,16 @@ class TiledImage:
     file_name: str = None
     description: str= None
     parent_url: str = None
-    format: str = DEFAULT_FORMAT
+    format: str = 'jpg'
     width: int = 0
     height: int = 0
     tile_size: int = 0
     overlap: int = 0
     __cache: dict = field(default_factory=dict, repr=False, init=False) # TODO : cache on disk instead of in memory
+
+    @property
+    def id(self):
+        return self.ark or self.iid
 
     @property
     def max_zoom(self):

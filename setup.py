@@ -8,6 +8,7 @@ def read(fname):
 
 
 setup(
+    python_requires='>3.6',
     name='grabs',
     version='0.1',
     description='Grab documents and images from http://bibliotheques-specialisees.paris.fr',

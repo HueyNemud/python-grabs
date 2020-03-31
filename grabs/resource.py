@@ -20,9 +20,10 @@ def make_bs_url(parts):
 
 
 def get_js_var(source, varname):
-    regex = f'var\s{varname}\\s+=\\s+["|\']*(.+?)["|\']*\\s*;'
-    matches = re.search(regex, source)
-    return matches.group(1) if matches else None
+    regex = f'var\\s+{varname}\\s*=\\s*(.+)'
+    matches = re.search(regex, source,flags=re.IGNORECASE)
+    if matches:
+        return matches.group(1).strip().strip('"'';')
 
 
 def fetch_html(url):
@@ -233,13 +234,13 @@ class DocumentBuilder:
             return m.group(0)
 
     @staticmethod
-    def __get_links_to_childrens(document_id):
+    def __get_links_to_childrens(document_iid):
         f_name = 'InterviewId'
         children = set()
         for k in range(1, SUBDOCS_MAX_PAGES):
             # the childrens are added dynamically so we can't get them directly from the page source
             query = f'https://bibliotheques-specialisees.paris.fr/in/rest/searchSVC/jsonp/geoquery?callback=&query=*' \
-                    f'&fq=parent_iid:"{document_id}"' \
+                    f'&fq=parent_iid:"{document_iid}"' \
                     f'&fl={f_name}' \
                     f'&pageSize={N_SUBDOCS_AT_ONCE}' \
                     f'&pageNo={k}'

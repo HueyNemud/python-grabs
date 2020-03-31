@@ -45,7 +45,8 @@ class _UntileQuery:
         tile_matrix = {}
         for col_idx in list(range(0, n_columns)):
             for row_idx in list(range(0, n_rows)):
-                tile_matrix[col_idx, row_idx] = url_template(self.image.tiles_url, self.zoom_level, col_idx, row_idx, self.image.format)
+                url = url_template(self.image.tiles_url, self.zoom_level, col_idx, row_idx, self.image.format)
+                tile_matrix[col_idx, row_idx] = url
         return tile_matrix
 
     @staticmethod

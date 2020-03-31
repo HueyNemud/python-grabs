@@ -14,9 +14,12 @@ Options:
 
   -z, --zoom-level INTEGER  The zoom level at which the images will be
                             downloaded. If not specified, the maximum zoom
-                            level for each image will be used.
+                            level for each image will be used. The minimum
+                            zoom level is usually 10.
 
-  -r, --recursive           Download the subviews of the document set with -s.
+  -r, --recursive           Download the sub-documents of the document set
+                            with -s.
+
   -x, --no-images           If set, only the metadata of images will be
                             downloaded.
 

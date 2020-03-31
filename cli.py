@@ -48,9 +48,9 @@ def print_end_message(out_dir, n_docs, n_img=0, success_img=0):
 @click.option("--out-dir", "-o", default=".",
               help="Path to a directory where the documents data will be stored. Default in the current folder.")
 @click.option("--zoom-level", "-z", default=None, type=int,
-              help="The zoom level at which the images will be downloaded.' \
-              'If not specified, the maximum zoom level for each image will be used.' \
-              'The minimum zoom level is usually 10.")
+              help="The zoom level at which the images will be downloaded. "
+              + "If not specified, the maximum zoom level for each image will be used. "
+              + "The minimum zoom level is usually 10.")
 @click.option("--recursive", "-r", is_flag=True, default=False,
               help="Download the sub-documents of the document set with -s.")
 @click.option("--no-images", "-x", is_flag=True, default=False,
